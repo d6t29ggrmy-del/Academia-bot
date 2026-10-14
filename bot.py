@@ -1,6 +1,6 @@
 """
 Robô da Academia — Walton Family Whole Health & Fitness (Club Automation)
-v1.0
+v1.1 — login mais robusto (campos #login/#password e botão #loginButton)
 
 O que faz, a cada execução:
   1. Entra no portal com a conta do Jaime.
@@ -132,17 +132,27 @@ def login(page):
     if page.locator("text=Log Out").first.is_visible(timeout=1500):
         log("Já logado")
         return
-    pwd = page.locator('input[type="password"]:visible').first
-    pwd.wait_for(timeout=20000)
-    user = page.locator('input[type="text"]:visible, input[type="email"]:visible').first
-    user.fill(os.environ["CA_USERNAME"])
-    pwd.fill(os.environ["CA_PASSWORD"])
-    pwd.press("Enter")
+    page.wait_for_selector("#caSignInLoginForm #login", state="attached", timeout=20000)
+    dismiss_popups(page)
+    # preenche direto nos campos do formulário (funciona mesmo com aviso por cima)
+    page.fill("#caSignInLoginForm #login", os.environ["CA_USERNAME"].strip(), force=True)
+    page.fill("#caSignInLoginForm #password", os.environ["CA_PASSWORD"].strip(), force=True)
+    dismiss_popups(page)
     try:
-        page.wait_for_selector("text=Log Out", timeout=30000)
+        page.click("#loginButton", timeout=10000)
+    except Exception:
+        page.evaluate("document.getElementById('loginButton').click()")
+    try:
+        page.wait_for_function(
+            "() => /\\/member/.test(location.pathname) || /Log Out/.test(document.body.innerText)",
+            timeout=40000)
     except PWTimeout:
         shot(page, "login-falhou")
-        raise RuntimeError("Login não confirmou (não encontrei 'Log Out' após entrar)")
+        msg = page.evaluate("""() => [...document.querySelectorAll('.error, .alert, .message, [class*=error], [class*=Error]')]
+            .filter(e => e.offsetParent !== null).map(e => e.innerText.trim()).filter(Boolean).join(' | ').slice(0, 300)""")
+        log(f"URL após login: {page.url.split('?')[0]}")
+        raise RuntimeError("Login não confirmou" + (f" — site disse: {msg}" if msg else " (sem mensagem de erro na tela)"))
+    page.wait_for_load_state("domcontentloaded")
     dismiss_popups(page)
     log("Login OK")
 
