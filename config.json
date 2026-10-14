@@ -1,0 +1,30 @@
+{
+  "base_url": "https://walmart.clubautomation.com",
+  "timezone": "America/Chicago",
+  "horizon_days": 14,
+  "members": ["Jaime", "Ana Elisa"],
+  "calendar_name": "Academia",
+  "location": "Walton Family Whole Health & Fitness\n1400 SE Fifth St, Bentonville, AR 72716, United States",
+  "phone": "479-204-1000",
+  "alert_minutes_before": 15,
+  "classes": [
+    {
+      "name": "Mindful Mobility",
+      "event_id": 624023,
+      "weekday": "Monday",
+      "start": "05:30pm"
+    },
+    {
+      "name": "LIFT",
+      "event_id": 829304,
+      "weekday": "Wednesday",
+      "start": "04:30pm"
+    },
+    {
+      "name": "LIFT (Evening)",
+      "event_id": 626548,
+      "weekday": "Thursday",
+      "start": "05:15pm"
+    }
+  ]
+}
