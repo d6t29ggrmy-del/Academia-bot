@@ -1,4 +1,4 @@
-name: Academia - reservas automaticas
+name: Bot Academia - reservas automaticas
 
 on:
   schedule:
