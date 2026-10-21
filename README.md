@@ -1,4 +1,4 @@
-# Bot Academia — reservas automáticas (v1.2)
+# Bot Academia — reservas automáticas (v1.3)
 
 Robô que reserva as aulas do Jaime e da Ana Elisa na Walton Family Whole Health & Fitness,
 cria o evento no calendário "Academia" do iCloud (com convite para a Ana Elisa) e avisa no WhatsApp.
@@ -9,7 +9,7 @@ cria o evento no calendário "Academia" do iCloud (com convite para a Ana Elisa)
 | LIFT | Quarta | 4:30 pm |
 | LIFT (Evening) | Quinta | 5:15 pm |
 
-Roda sozinho a cada 15 minutos e olha as próximas 2 semanas. Para mudar aulas, edite `config.json`.
+É acionado a cada 5 minutos pelo **cron-job.org** (o agendamento do próprio GitHub atrasa horas) e olha as próximas 2 semanas. Para mudar aulas, edite `config.json`.
 
 ---
 
@@ -70,6 +70,20 @@ Depois disso ele roda sozinho a cada 15 minutos.
    - Cabeçalhos: `Authorization` = `Bearer SEU_TOKEN` e `Accept` = `application/vnd.github+json`
    - Corpo (JSON): `ref` = `main`
 3. Ative **Mostrar no Apple Watch** nos detalhes do atalho.
+
+## Passo 7 — Acionamento a cada 5 minutos (cron-job.org)
+
+O agendamento gratuito do GitHub atrasa de 2 a 4 horas. Por isso o robô é acionado de fora:
+
+1. Crie um token no GitHub: **Settings (perfil) → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**.
+   Repositório: só **Bot-Academia** · Permissão **Actions: Read and write**.
+2. Em **cron-job.org**, crie uma conta grátis e um **Create cronjob**:
+   - URL: `https://api.github.com/repos/d6t29ggrmy-del/Bot-Academia/actions/workflows/academia.yml/dispatches`
+   - Agenda: a cada 5 minutos
+   - Avançado → Método **POST**; Cabeçalhos: `Authorization: Bearer SEU_TOKEN`, `Accept: application/vnd.github+json`,
+     `Content-Type: application/json`; Corpo: `{"ref":"main","inputs":{"notify_errors":"false"}}`
+   - A resposta esperada é **204**.
+3. O agendamento do GitHub fica como reserva, 1 vez por hora.
 
 ## Segurança
 

@@ -1,6 +1,6 @@
 """
 Bot Academia — Walton Family Whole Health & Fitness (Club Automation)
-v1.2 — projeto renomeado para Bot Academia (login robusto desde a v1.1)
+v1.3 — acionado a cada 5 min pelo cron-job.org; nova tentativa quando a janela de inscrição demora
 
 O que faz, a cada execução:
   1. Entra no portal com a conta do Jaime.
@@ -21,7 +21,7 @@ Variáveis de ambiente (GitHub Secrets):
 Opcionais:
   DRY_RUN=true        só verifica e relata, não reserva nem cria eventos
   SKIP_CALENDAR=true  não mexe no calendário
-  NOTIFY_ERRORS=true  envia erro pelo WhatsApp (o workflow liga isso nas execuções manuais)
+  NOTIFY_ERRORS=true  envia erro pelo WhatsApp na hora (padrão nas execuções pelo botão Run workflow)
 """
 
 import json
@@ -124,6 +124,10 @@ def dismiss_popups(page):
 
 
 # ---------------------------------------------------------------- portal
+class WindowNotOpened(Exception):
+    pass
+
+
 def login(page):
     log("Fazendo login…")
     page.goto(BASE + "/", wait_until="domcontentloaded")
@@ -187,9 +191,20 @@ def get_description(page):
 def ensure_members(page, button_index, label_for_log):
     """Abre a janela da data, inscreve os membros que faltam. Retorna (novos, todos_inscritos)."""
     btn = page.locator("button.register_button").nth(button_index)
-    btn.scroll_into_view_if_needed()
-    btn.click()
-    page.wait_for_selector("div.select-member:visible", timeout=20000)
+    opened = False
+    for tentativa in range(3):  # a janela às vezes demora; tenta até 3 vezes
+        try:
+            btn.scroll_into_view_if_needed()
+            btn.click()
+            page.wait_for_selector("div.select-member:visible", timeout=20000)
+            opened = True
+            break
+        except PWTimeout:
+            log(f"  janela de inscrição não abriu (tentativa {tentativa + 1}/3)")
+            page.keyboard.press("Escape")
+            time.sleep(3)
+    if not opened:
+        raise WindowNotOpened(f"janela de inscrição não abriu em {label_for_log}")
     time.sleep(1)
 
     newly = []
@@ -357,6 +372,15 @@ def main():
                             continue
                         try:
                             newly, all_in = ensure_members(page, idx, label)
+                        except WindowNotOpened as e:
+                            if "register-button-registered" in r["cls"]:
+                                # já aparece como inscrito: não é problema, segue para o calendário
+                                log(f"    aviso: {e} — mas a aula já consta como Registered")
+                                to_calendar.append((c, d, start, end, description))
+                            else:
+                                problems.append(f"{label}: {e}")
+                                shot(page, "erro-inscricao")
+                            continue
                         except Exception as e:
                             problems.append(f"{label}: {e}")
                             shot(page, "erro-inscricao")
@@ -365,7 +389,8 @@ def main():
                             booked.append((label, newly))
                         if all_in or DRY_RUN:
                             to_calendar.append((c, d, start, end, description))
-                    elif "register-button-waitlist" in r["cls"] or "full" in r["cls"].lower():
+                    elif ("register-button-waitlist" in r["cls"] or "full" in r["cls"].lower()
+                          or re.search(r"full|waitlist", status, re.I)):
                         log("    lotada / lista de espera — nada a fazer")
                     else:
                         log("    ainda não abriu")
@@ -409,8 +434,8 @@ def main():
     if problems:
         log("PROBLEMAS:\n  " + "\n  ".join(problems))
         now = datetime.now(TZ)
-        # execução manual: avisa sempre; automática: no máximo 1 aviso por dia (1ª execução após 8h)
-        if NOTIFY_ERRORS or (now.hour == 8 and now.minute < 15):
+        # execução manual: avisa sempre; automática: no máximo 1 aviso por dia (execução das 8h00–8h05)
+        if NOTIFY_ERRORS or (now.hour == 8 and now.minute < 6):
             whatsapp("⚠️ BOT ACADEMIA — problema no robô:\n" + "\n".join(problems[:5]), only_jaime=True)
 
     log(f"Fim — reservas novas: {len(booked)}, eventos criados: {len(created)}, problemas: {len(problems)}")
