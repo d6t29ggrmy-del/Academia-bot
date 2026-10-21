@@ -1,5 +1,5 @@
 name: Bot Academia - reservas automaticas
-
+ 
 on:
   schedule:
     - cron: "7 * * * *"   # reserva de segurança: 1x por hora (o acionamento principal vem do cron-job.org a cada 5 min)
@@ -17,35 +17,35 @@ on:
         description: "Avisar erro na hora pelo WhatsApp (true/false)"
         required: false
         default: "true"
-
+ 
 concurrency:
   group: academia-bot
   cancel-in-progress: false
-
+ 
 jobs:
   reservar:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-
+ 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: "pip"
-
+ 
       - name: Instalar dependencias
         run: pip install -r requirements.txt
-
+ 
       - name: Cache do navegador
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
-
+ 
       - name: Instalar Chromium
         run: python -m playwright install --with-deps chromium
-
+ 
       - name: Rodar robo
         env:
           CA_USERNAME: ${{ secrets.CA_USERNAME }}
@@ -61,7 +61,7 @@ jobs:
           SKIP_CALENDAR: ${{ github.event.inputs.skip_calendar || 'false' }}
           NOTIFY_ERRORS: ${{ github.event.inputs.notify_errors || 'false' }}
         run: python bot.py
-
+ 
       - name: Guardar prints de erro
         if: always()
         uses: actions/upload-artifact@v4
@@ -70,3 +70,4 @@ jobs:
           path: debug/
           if-no-files-found: ignore
           retention-days: 3
+ 
