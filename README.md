@@ -1,4 +1,4 @@
-# Academia-bot — reservas automáticas (v1.0)
+# Bot Academia — reservas automáticas (v1.2)
 
 Robô que reserva as aulas do Jaime e da Ana Elisa na Walton Family Whole Health & Fitness,
 cria o evento no calendário "Academia" do iCloud (com convite para a Ana Elisa) e avisa no WhatsApp.
@@ -16,7 +16,7 @@ Roda sozinho a cada 15 minutos e olha as próximas 2 semanas. Para mudar aulas, 
 ## Passo 1 — Criar o repositório
 
 1. Em github.com, clique em **New repository**.
-2. Nome: **Academia-bot** · Visibilidade: **Public** · clique em **Create repository**.
+2. Nome: **Bot-Academia** · Visibilidade: **Public** · clique em **Create repository**.
 3. Clique em **uploading an existing file** e arraste: `bot.py`, `config.json`, `requirements.txt`, `README.md`, `.gitignore`.
 4. Clique em **Commit changes**.
 5. Crie o arquivo do agendamento: **Add file → Create new file**, nome
@@ -25,7 +25,7 @@ Roda sozinho a cada 15 minutos e olha as próximas 2 semanas. Para mudar aulas, 
 ## Passo 2 — Senha de app da Apple (para o calendário)
 
 1. Entre em **account.apple.com** → **Login e Segurança** → **Senhas de Apps**.
-2. Crie uma com o nome **Academia-bot** e copie (formato `xxxx-xxxx-xxxx-xxxx`).
+2. Crie uma com o nome **Bot-Academia** e copie (formato `xxxx-xxxx-xxxx-xxxx`).
    Ela **não é** a sua senha da Apple: só acessa o calendário e pode ser revogada a qualquer momento.
 
 ## Passo 3 — WhatsApp da Ana Elisa (CallMeBot)
@@ -52,7 +52,7 @@ No repositório: **Settings → Secrets and variables → Actions → New reposi
 
 ## Passo 5 — Testes
 
-1. **Actions** → **Academia - reservas automaticas** → **Run workflow** com `dry_run = true`.
+1. **Actions** → **Bot Academia - reservas automaticas** → **Run workflow** com `dry_run = true`.
    Ele só verifica e mostra no registro o que faria, sem reservar nada.
 2. Depois rode de novo com `dry_run = false`. Essa execução cria no calendário os eventos das aulas
    em que vocês já estão inscritos (ex.: LIFT de 28/10).
@@ -63,9 +63,9 @@ Depois disso ele roda sozinho a cada 15 minutos.
 
 1. Em github.com → **Settings (do seu perfil) → Developer settings → Personal access tokens →
    Fine-grained tokens → Generate new token**.
-   Repositório: só **Academia-bot** · Permissão: **Actions: Read and write**. Copie o token.
+   Repositório: só **Bot-Academia** · Permissão: **Actions: Read and write**. Copie o token.
 2. No app **Atalhos**, crie um atalho **Reservar Academia** com a ação **Obter Conteúdo de URL**:
-   - URL: `https://api.github.com/repos/SEU_USUARIO/Academia-bot/actions/workflows/academia.yml/dispatches`
+   - URL: `https://api.github.com/repos/SEU_USUARIO/Bot-Academia/actions/workflows/academia.yml/dispatches`
    - Método: **POST**
    - Cabeçalhos: `Authorization` = `Bearer SEU_TOKEN` e `Accept` = `application/vnd.github+json`
    - Corpo (JSON): `ref` = `main`

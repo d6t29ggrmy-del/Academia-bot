@@ -1,6 +1,6 @@
 """
-Robô da Academia — Walton Family Whole Health & Fitness (Club Automation)
-v1.1 — login mais robusto (campos #login/#password e botão #loginButton)
+Bot Academia — Walton Family Whole Health & Fitness (Club Automation)
+v1.2 — projeto renomeado para Bot Academia (login robusto desde a v1.1)
 
 O que faz, a cada execução:
   1. Entra no portal com a conta do Jaime.
@@ -400,7 +400,7 @@ def main():
 
     # ----- avisos
     if booked:
-        lines = ["🏋️ ACADEMIA — reserva feita" + (" (teste)" if DRY_RUN else "")]
+        lines = ["🏋️ BOT ACADEMIA — reserva feita" + (" (teste)" if DRY_RUN else "")]
         for label, names in booked:
             lines.append(f"✅ {label} — {' e '.join(names)}")
         if created:
@@ -411,7 +411,7 @@ def main():
         now = datetime.now(TZ)
         # execução manual: avisa sempre; automática: no máximo 1 aviso por dia (1ª execução após 8h)
         if NOTIFY_ERRORS or (now.hour == 8 and now.minute < 15):
-            whatsapp("⚠️ ACADEMIA — problema no robô:\n" + "\n".join(problems[:5]), only_jaime=True)
+            whatsapp("⚠️ BOT ACADEMIA — problema no robô:\n" + "\n".join(problems[:5]), only_jaime=True)
 
     log(f"Fim — reservas novas: {len(booked)}, eventos criados: {len(created)}, problemas: {len(problems)}")
     if problems and NOTIFY_ERRORS:
