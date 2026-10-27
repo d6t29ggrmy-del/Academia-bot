@@ -1,6 +1,6 @@
 """
 Bot Academia — Walton Family Whole Health & Fitness (Club Automation)
-v1.3 — acionado a cada 5 min pelo cron-job.org; nova tentativa quando a janela de inscrição demora
+v1.4 — pausas por período (config.json → "pausas"), ex.: viagens
 
 O que faz, a cada execução:
   1. Entra no portal com a conta do Jaime.
@@ -93,6 +93,14 @@ def parse_row_date(text, today):
     if candidate < today - timedelta(days=60):  # virada de ano
         candidate = date(year + 1, mo, d)
     return candidate, start.lower(), end.lower()
+
+
+def em_pausa(d):
+    """Retorna o motivo se a data cai em alguma pausa do config.json (datas inclusivas)."""
+    for p in CFG.get("pausas", []):
+        if date.fromisoformat(p["inicio"]) <= d <= date.fromisoformat(p["fim"]):
+            return p.get("motivo", "pausa")
+    return None
 
 
 def to_dt(d, hhmm_ampm):
@@ -354,6 +362,10 @@ def main():
                     if not r["text"].startswith(c["weekday"]) or start != c["start"].lower():
                         continue
                     if d < today or d > horizon:
+                        continue
+                    pausa = em_pausa(d)
+                    if pausa:
+                        log(f"  {fmt_pt(d, start)}: em pausa ({pausa}) — não reservar")
                         continue
                     targets.append((d, start, end, r))
 
