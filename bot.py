@@ -1,6 +1,6 @@
 """
 Bot Academia — Walton Family Whole Health & Fitness (Club Automation)
-v1.5 — diagnóstico do login (tamanhos e resposta do site, sem expor senha); pausas por período
+v1.6 — entra na lista de espera quando a aula está lotada; registra a resposta do WhatsApp; diagnóstico do login; pausas
 
 O que faz, a cada execução:
   1. Entra no portal com a conta do Jaime.
@@ -73,7 +73,11 @@ def whatsapp(text, only_jaime=False):
                + "&apikey=" + urllib.parse.quote(key))
         try:
             r = requests.get(url, timeout=30)
-            log(f"WhatsApp {who}: HTTP {r.status_code}")
+            txt = re.sub(r"<[^>]+>", " ", r.text or "")
+            txt = re.sub(r"\s+", " ", txt).strip()
+            if key:
+                txt = txt.replace(key, "***")
+            log(f"WhatsApp {who}: HTTP {r.status_code} — {txt[:200]}")
         except Exception as e:  # noqa
             log(f"WhatsApp {who}: falhou ({e})")
         time.sleep(2)
@@ -213,8 +217,9 @@ def get_description(page):
         return ""
 
 
-def ensure_members(page, button_index, label_for_log):
-    """Abre a janela da data, inscreve os membros que faltam. Retorna (novos, todos_inscritos)."""
+def ensure_members(page, button_index, label_for_log, waitlist=False):
+    """Abre a janela da data e inscreve os membros que faltam (ou os coloca na lista de espera).
+    Retorna (novos, todos_ok)."""
     btn = page.locator("button.register_button").nth(button_index)
     opened = False
     for tentativa in range(3):  # a janela às vezes demora; tenta até 3 vezes
@@ -242,20 +247,23 @@ def ensure_members(page, button_index, label_for_log):
         if "registered" in cls.split():
             log(f"  {name}: já inscrito")
             continue
+        if waitlist and "waitlisted" in cls.split():
+            log(f"  {name}: já está na lista de espera")
+            continue
         if DRY_RUN:
-            log(f"  {name}: seria inscrito (DRY_RUN)")
+            log(f"  {name}: seria {'colocado na lista de espera' if waitlist else 'inscrito'} (DRY_RUN)")
             newly.append(name)
             continue
         item.click()
         page.wait_for_load_state("networkidle")
         time.sleep(1.5)
         cls_after = item.get_attribute("class") or ""
-        if "unselected" in cls_after.split():
+        if "unselected" in cls_after.split() and not "waitlist-selected" in cls_after.split():
             item.click()  # tenta de novo uma vez
             page.wait_for_load_state("networkidle")
             time.sleep(1.5)
             cls_after = item.get_attribute("class") or ""
-            if "unselected" in cls_after.split():
+            if "unselected" in cls_after.split() and not "waitlist-selected" in cls_after.split():
                 shot(page, "selecao-falhou")
                 raise RuntimeError(f"Não consegui selecionar '{name}' em {label_for_log}")
         newly.append(name)
@@ -270,12 +278,14 @@ def ensure_members(page, button_index, label_for_log):
         time.sleep(1)
         return newly, False
 
-    page.locator("a.button-round:visible", has_text=re.compile(r"^\s*Register\s*$")).first.click()
+    botao = r"^\s*Add to Waitlist\s*$" if waitlist else r"^\s*Register\s*$"
+    confirmacao = "text=/added to the waitlist/i" if waitlist else "text=/registration is complete/i"
+    page.locator("a.button-round:visible", has_text=re.compile(botao)).first.click()
     try:
-        page.wait_for_selector("text=/registration is complete/i", timeout=30000)
+        page.wait_for_selector(confirmacao, timeout=30000)
     except PWTimeout:
         shot(page, "confirmacao-ausente")
-        raise RuntimeError(f"Sem confirmação de inscrição em {label_for_log}")
+        raise RuntimeError(f"Sem confirmação de {'lista de espera' if waitlist else 'inscrição'} em {label_for_log}")
     try:
         page.locator("a:visible, button:visible", has_text=re.compile(r"^\s*OK\s*$")).first.click(timeout=5000)
     except Exception:
@@ -357,7 +367,7 @@ def main():
     horizon = today + timedelta(days=CFG["horizon_days"])
     log(f"Início — DRY_RUN={DRY_RUN} — horizonte até {horizon:%d/%m/%Y}")
 
-    booked, problems, to_calendar = [], [], []
+    booked, problems, to_calendar, waitlisted = [], [], [], []
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -418,9 +428,26 @@ def main():
                             booked.append((label, newly))
                         if all_in or DRY_RUN:
                             to_calendar.append((c, d, start, end, description))
-                    elif ("register-button-waitlist" in r["cls"] or "full" in r["cls"].lower()
-                          or re.search(r"full|waitlist", status, re.I)):
-                        log("    lotada / lista de espera — nada a fazer")
+                    elif "register-button-waitlist" in r["cls"] or re.search(r"waitlist", status, re.I):
+                        open_event(page, c["event_id"])
+                        rows_now = read_rows(page)
+                        idx = next((x["i"] for x in rows_now if x["text"].startswith(r["text"][:40])), None)
+                        if idx is None:
+                            problems.append(f"{label}: linha sumiu da página")
+                            continue
+                        try:
+                            newly, _ = ensure_members(page, idx, label, waitlist=True)
+                        except WindowNotOpened as e:
+                            log(f"    aviso: {e} (lista de espera)")
+                            continue
+                        except Exception as e:
+                            problems.append(f"{label} (lista de espera): {e}")
+                            shot(page, "erro-lista-espera")
+                            continue
+                        if newly:
+                            waitlisted.append((label, newly))
+                    elif "full" in r["cls"].lower() or re.search(r"full", status, re.I):
+                        log("    lotada, sem lista de espera — nada a fazer")
                     else:
                         log("    ainda não abriu")
         except Exception as e:
@@ -453,6 +480,12 @@ def main():
             traceback.print_exc()
 
     # ----- avisos
+    if waitlisted:
+        lines = ["⏳ BOT ACADEMIA — lista de espera" + (" (teste)" if DRY_RUN else "")]
+        for label, names in waitlisted:
+            lines.append(f"📝 {label} — {' e '.join(names)} na lista de espera")
+        lines.append("Se abrir vaga, a academia promove vocês; o robô cria o evento no calendário quando aparecer como inscrito.")
+        whatsapp("\n".join(lines))
     if booked:
         lines = ["🏋️ BOT ACADEMIA — reserva feita" + (" (teste)" if DRY_RUN else "")]
         for label, names in booked:
@@ -467,7 +500,7 @@ def main():
         if NOTIFY_ERRORS or (now.hour == 8 and now.minute < 6):
             whatsapp("⚠️ BOT ACADEMIA — problema no robô:\n" + "\n".join(problems[:5]), only_jaime=True)
 
-    log(f"Fim — reservas novas: {len(booked)}, eventos criados: {len(created)}, problemas: {len(problems)}")
+    log(f"Fim — reservas novas: {len(booked)}, listas de espera: {len(waitlisted)}, eventos criados: {len(created)}, problemas: {len(problems)}")
     if problems and NOTIFY_ERRORS:
         sys.exit(1)  # só marca falha nas execuções manuais, para não lotar seu e-mail
 
