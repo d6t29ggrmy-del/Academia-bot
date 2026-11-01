@@ -363,6 +363,10 @@ class Calendar:
 
 # ---------------------------------------------------------------- principal
 def main():
+    if os.getenv("TESTE_WHATSAPP", "false").lower() == "true":
+        log("Teste de WhatsApp (só para o Jaime)")
+        whatsapp("🧪 BOT ACADEMIA — teste de WhatsApp. Se você recebeu esta mensagem, o envio está funcionando.", only_jaime=True)
+        return
     today = datetime.now(TZ).date()
     horizon = today + timedelta(days=CFG["horizon_days"])
     log(f"Início — DRY_RUN={DRY_RUN} — horizonte até {horizon:%d/%m/%Y}")

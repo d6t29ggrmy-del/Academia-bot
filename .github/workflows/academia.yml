@@ -17,6 +17,10 @@ on:
         description: "Avisar erro na hora pelo WhatsApp (true/false)"
         required: false
         default: "true"
+      teste_whatsapp:
+        description: "So enviar uma mensagem de teste no WhatsApp (true/false)"
+        required: false
+        default: "false"
  
 concurrency:
   group: academia-bot
@@ -60,6 +64,7 @@ jobs:
           DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
           SKIP_CALENDAR: ${{ github.event.inputs.skip_calendar || 'false' }}
           NOTIFY_ERRORS: ${{ github.event.inputs.notify_errors || 'false' }}
+          TESTE_WHATSAPP: ${{ github.event.inputs.teste_whatsapp || 'false' }}
         run: python bot.py
  
       - name: Guardar prints de erro
