@@ -1,4 +1,4 @@
-# Bot Academia — reservas automáticas (v1.6)
+# Bot Academia — reservas automáticas (v1.7)
 
 Robô que reserva as aulas do Jaime e da Ana Elisa na Walton Family Whole Health & Fitness,
 cria o evento no calendário "Academia" do iCloud (com convite para a Ana Elisa) e avisa no WhatsApp.
@@ -74,7 +74,7 @@ Depois disso ele roda sozinho a cada 15 minutos.
 ## Lista de espera
 
 Quando a aula está lotada e o site oferece **Waitlist**, o robô coloca Jaime e Ana Elisa na lista de espera
-e avisa no WhatsApp. Se a academia promover vocês, a aula passa a aparecer como inscrita e o robô cria o evento no calendário.
+e avisa no WhatsApp. Também cria no calendário um evento "⏳ Lista de Espera — …". Se a academia promover vocês, esse evento é trocado pelo evento normal da aula.
 
 ## Pausas (viagens)
 

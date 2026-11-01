@@ -1,6 +1,6 @@
 """
 Bot Academia — Walton Family Whole Health & Fitness (Club Automation)
-v1.6 — entra na lista de espera quando a aula está lotada; registra a resposta do WhatsApp; diagnóstico do login; pausas
+v1.7 — lista de espera também no calendário ("Lista de Espera" no título); corrige formato do telefone do WhatsApp
 
 O que faz, a cada execução:
   1. Entra no portal com a conta do Jaime.
@@ -60,11 +60,22 @@ def log(msg):
 
 
 # ---------------------------------------------------------------- WhatsApp
+def normalizar_telefone(phone):
+    """Deixa só os dígitos e garante o formato internacional (+1 para números dos EUA com 10 dígitos)."""
+    if not phone:
+        return phone
+    digitos = re.sub(r"\D", "", phone)
+    if len(digitos) == 10:
+        digitos = "1" + digitos
+    return "+" + digitos
+
+
 def whatsapp(text, only_jaime=False):
     targets = [("JAIME", os.getenv("WA_PHONE_JAIME"), os.getenv("WA_APIKEY_JAIME"))]
     if not only_jaime:
         targets.append(("ANA", os.getenv("WA_PHONE_ANA"), os.getenv("WA_APIKEY_ANA")))
     for who, phone, key in targets:
+        phone = normalizar_telefone(phone)
         if not phone or not key:
             log(f"WhatsApp {who}: sem credenciais, pulando")
             continue
@@ -313,7 +324,14 @@ class Calendar:
             self.organizer = "mailto:" + os.environ["ICLOUD_EMAIL"]
         log(f"Calendário '{CFG['calendar_name']}' conectado")
 
-    def exists(self, uid, start, end, title):
+    def delete_uid(self, uid):
+        try:
+            self.cal.event_by_uid(uid).delete()
+            return True
+        except Exception:
+            return False
+
+    def exists(self, uid, start, end, title, waitlist=False):
         try:
             self.cal.event_by_uid(uid)
             return True
@@ -324,8 +342,13 @@ class Calendar:
                                     event=True, expand=False)
             for ev in found:
                 data = ev.data or ""
-                base_name = title.split(" @ ")[0].split(" (")[0]
-                if re.search(r"SUMMARY[^:]*:.*" + re.escape(base_name), data, re.I):
+                m = re.search(r"^SUMMARY[^:]*:(.*)$", data, re.M | re.I)
+                summary = m.group(1) if m else ""
+                eh_espera = "lista de espera" in summary.lower()
+                if eh_espera != waitlist:
+                    continue
+                base_name = title.replace("⏳ Lista de Espera — ", "").split(" @ ")[0].split(" (")[0]
+                if base_name.lower() in summary.lower():
                     return True
         except Exception as e:
             log(f"  busca no calendário falhou ({e}); vou criar mesmo assim")
@@ -419,7 +442,7 @@ def main():
                             if "register-button-registered" in r["cls"]:
                                 # já aparece como inscrito: não é problema, segue para o calendário
                                 log(f"    aviso: {e} — mas a aula já consta como Registered")
-                                to_calendar.append((c, d, start, end, description))
+                                to_calendar.append((c, d, start, end, description, False))
                             else:
                                 problems.append(f"{label}: {e}")
                                 shot(page, "erro-inscricao")
@@ -431,7 +454,7 @@ def main():
                         if newly:
                             booked.append((label, newly))
                         if all_in or DRY_RUN:
-                            to_calendar.append((c, d, start, end, description))
+                            to_calendar.append((c, d, start, end, description, False))
                     elif "register-button-waitlist" in r["cls"] or re.search(r"waitlist", status, re.I):
                         open_event(page, c["event_id"])
                         rows_now = read_rows(page)
@@ -440,7 +463,7 @@ def main():
                             problems.append(f"{label}: linha sumiu da página")
                             continue
                         try:
-                            newly, _ = ensure_members(page, idx, label, waitlist=True)
+                            newly, all_ok = ensure_members(page, idx, label, waitlist=True)
                         except WindowNotOpened as e:
                             log(f"    aviso: {e} (lista de espera)")
                             continue
@@ -450,6 +473,8 @@ def main():
                             continue
                         if newly:
                             waitlisted.append((label, newly))
+                        if all_ok or DRY_RUN:
+                            to_calendar.append((c, d, start, end, description, True))
                     elif "full" in r["cls"].lower() or re.search(r"full", status, re.I):
                         log("    lotada, sem lista de espera — nada a fazer")
                     else:
@@ -466,14 +491,19 @@ def main():
     if to_calendar and not SKIP_CALENDAR:
         try:
             cal = None if DRY_RUN else Calendar()
-            for c, d, start, end, description in to_calendar:
-                title = f"{c['name']} @ Walmart"
+            for c, d, start, end, description, espera in to_calendar:
+                title = (f"⏳ Lista de Espera — {c['name']} @ Walmart" if espera
+                         else f"{c['name']} @ Walmart")
                 s, e = to_dt(d, start), to_dt(d, end)
-                uid = f"academia-{c['event_id']}-{d:%Y%m%d}@academia-bot"
+                uid_ok = f"academia-{c['event_id']}-{d:%Y%m%d}@academia-bot"
+                uid_espera = f"academia-espera-{c['event_id']}-{d:%Y%m%d}@academia-bot"
+                uid = uid_espera if espera else uid_ok
                 if DRY_RUN:
                     log(f"  calendário (DRY_RUN): {title} {fmt_pt(d, start)}")
                     continue
-                if cal.exists(uid, s, e, title):
+                if not espera and cal.delete_uid(uid_espera):
+                    log(f"  calendário: removido o evento de lista de espera de {c['name']} {fmt_pt(d, start)} (vaga confirmada)")
+                if cal.exists(uid, s, e, title, waitlist=espera):
                     log(f"  calendário: já existe {title} {fmt_pt(d, start)}")
                     continue
                 cal.create(uid, s, e, title, description)
