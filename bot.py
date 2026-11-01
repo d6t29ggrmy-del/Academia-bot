@@ -1,6 +1,6 @@
 """
 Bot Academia — Walton Family Whole Health & Fitness (Club Automation)
-v1.4 — pausas por período (config.json → "pausas"), ex.: viagens
+v1.5 — diagnóstico do login (tamanhos e resposta do site, sem expor senha); pausas por período
 
 O que faz, a cada execução:
   1. Entra no portal com a conta do Jaime.
@@ -147,13 +147,30 @@ def login(page):
     page.wait_for_selector("#caSignInLoginForm #login", state="attached", timeout=20000)
     dismiss_popups(page)
     # preenche direto nos campos do formulário (funciona mesmo com aviso por cima)
-    page.fill("#caSignInLoginForm #login", os.environ["CA_USERNAME"].strip(), force=True)
-    page.fill("#caSignInLoginForm #password", os.environ["CA_PASSWORD"].strip(), force=True)
+    user = os.environ["CA_USERNAME"].strip()
+    pwd = os.environ["CA_PASSWORD"].strip()
+    # diagnóstico sem expor dados: só tamanhos e formato
+    log(f"  diagnóstico: usuário com {len(user)} caracteres, contém @: {'@' in user}, "
+        f"senha com {len(pwd)} caracteres, espaços no meio: {' ' in user or ' ' in pwd}")
+    page.fill("#caSignInLoginForm #login", user, force=True)
+    page.fill("#caSignInLoginForm #password", pwd, force=True)
     dismiss_popups(page)
     try:
-        page.click("#loginButton", timeout=10000)
-    except Exception:
-        page.evaluate("document.getElementById('loginButton').click()")
+        with page.expect_response(lambda r: "/login/login" in r.url, timeout=30000) as resp_info:
+            try:
+                page.click("#loginButton", timeout=10000)
+            except Exception:
+                page.evaluate("document.getElementById('loginButton').click()")
+        resp = resp_info.value
+        body = ""
+        try:
+            body = resp.text()
+        except Exception:
+            pass
+        body = re.sub(r'"[^"]*(token|session|csrf|key|hash)[^"]*"\s*:\s*"[^"]*"', '"<oculto>":"<oculto>"', body, flags=re.I)
+        log(f"  diagnóstico: resposta do login HTTP {resp.status} — {body[:300]!r}")
+    except PWTimeout:
+        log("  diagnóstico: o site não fez a chamada /login/login após o clique")
     try:
         page.wait_for_function(
             "() => /\\/member/.test(location.pathname) || /Log Out/.test(document.body.innerText)",
